@@ -26,6 +26,7 @@ import Data.Vector.Mutable ( MVector(..))
 import qualified Data.Vector.Mutable as MVector
 
 import qualified Data.Text.Lazy as TL
+import Data.MemoTrie
 
 type MRowOps s = MVector s SpanOps
 
@@ -226,15 +227,18 @@ isOutOfBounds i s
     | s ^. skipRows         >= imageHeight i = True
     | otherwise = False
 
+addMaybeClipped :: forall s . Image -> BlitM s ()
+addMaybeClipped = memo addMaybeClipped'
+
 -- | This adds an image that might be partially clipped to the output
 -- ops.
 --
 -- This is a very touchy algorithm. Too touchy. For instance, the
 -- CropRight and CropBottom implementations are odd. They pass the
 -- current tests but something seems terribly wrong about all this.
-addMaybeClipped :: forall s . Image -> BlitM s ()
-addMaybeClipped EmptyImage = return ()
-addMaybeClipped (HorizText a textStr ow _cw) = do
+addMaybeClipped' :: forall s . Image -> BlitM s ()
+addMaybeClipped' EmptyImage = return ()
+addMaybeClipped' (HorizText a textStr ow _cw) = do
     -- This assumes that text spans are only 1 row high.
     s <- use skipRows
     when (s < 1) $ do
@@ -246,42 +250,42 @@ addMaybeClipped (HorizText a textStr ow _cw) = do
             then let textStr' = clipText textStr leftClip rightClip
                  in addUnclippedText a textStr'
             else addUnclippedText a textStr
-addMaybeClipped (VertJoin topImage bottomImage _ow oh) = do
+addMaybeClipped' (VertJoin topImage bottomImage _ow oh) = do
     when (imageHeight topImage + imageHeight bottomImage > 0) $
         addMaybeClippedJoin "vert_join" skipRows remainingRows rowOffset
                             (imageHeight topImage)
                             topImage
                             bottomImage
                             oh
-addMaybeClipped (HorizJoin leftImage rightImage ow _oh) = do
+addMaybeClipped' (HorizJoin leftImage rightImage ow _oh) = do
     when (imageWidth leftImage + imageWidth rightImage > 0) $
         addMaybeClippedJoin "horiz_join" skipColumns remainingColumns columnOffset
                             (imageWidth leftImage)
                             leftImage
                             rightImage
                             ow
-addMaybeClipped BGFill {outputWidth, outputHeight} = do
+addMaybeClipped' BGFill {outputWidth, outputHeight} = do
     s <- get
     let outputWidth'  = min (outputWidth  - s^.skipColumns) (s^.remainingColumns)
         outputHeight' = min (outputHeight - s^.skipRows   ) (s^.remainingRows)
     y <- use rowOffset
     forM_ [y..y+outputHeight'-1] $ snocOp (Skip outputWidth')
-addMaybeClipped CropRight {croppedImage, outputWidth} = do
+addMaybeClipped' CropRight {croppedImage, outputWidth} = do
     s <- use skipColumns
     r <- use remainingColumns
     let x = outputWidth - s
     when (x < r) $ remainingColumns .= x
     addMaybeClipped croppedImage
-addMaybeClipped CropLeft {croppedImage, leftSkip} = do
+addMaybeClipped' CropLeft {croppedImage, leftSkip} = do
     skipColumns += leftSkip
     addMaybeClipped croppedImage
-addMaybeClipped CropBottom {croppedImage, outputHeight} = do
+addMaybeClipped' CropBottom {croppedImage, outputHeight} = do
     s <- use skipRows
     r <- use remainingRows
     let x = outputHeight - s
     when (x < r) $ remainingRows .= x
     addMaybeClipped croppedImage
-addMaybeClipped CropTop {croppedImage, topSkip} = do
+addMaybeClipped' CropTop {croppedImage, topSkip} = do
     skipRows += topSkip
     addMaybeClipped croppedImage
 

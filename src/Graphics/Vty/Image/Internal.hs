@@ -2,6 +2,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# OPTIONS_HADDOCK hide #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Graphics.Vty.Image.Internal where
 
@@ -16,6 +18,7 @@ import Control.DeepSeq
 import Data.Semigroup (Semigroup(..))
 #endif
 import qualified Data.Text.Lazy as TL
+import Data.MemoTrie
 
 -- | A display text is a Data.Text.Lazy
 type DisplayText = TL.Text
@@ -143,6 +146,13 @@ data Image =
     -- Any image of zero size equals the empty image.
     | EmptyImage
     deriving (Eq, Generic, Show, Read)
+
+instance HasTrie Image where
+  newtype (Image :->: b) = ImageTrie { unImageTrie :: Reg Image :->: b }
+  trie = trieGeneric ImageTrie
+  untrie = untrieGeneric unImageTrie
+  enumerate = enumerateGeneric unImageTrie
+
 
 -- | pretty print just the structure of an image.
 ppImageStructure :: Image -> String

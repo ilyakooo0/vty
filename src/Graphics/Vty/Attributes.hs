@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- | Display attributes
 --
@@ -66,6 +68,8 @@ import Data.Word
 import GHC.Generics
 
 import Graphics.Vty.Attributes.Color
+import Data.MemoTrie
+import Data.MemoTrie.Instances.Text ()
 
 -- | A display attribute defines the Color and Style of all the
 -- characters rendered after the attribute is applied.
@@ -80,6 +84,12 @@ data Attr = Attr
     , attrBackColor :: !(MaybeDefault Color)
     , attrURL :: !(MaybeDefault Text)
     } deriving ( Eq, Show, Read, Generic, NFData )
+
+instance HasTrie Attr where
+  newtype (Attr :->: b) = AttrTrie { unAttrTrie :: Reg Attr :->: b }
+  trie = trieGeneric AttrTrie
+  untrie = untrieGeneric unAttrTrie
+  enumerate = enumerateGeneric unAttrTrie
 
 -- This could be encoded into a single 32 bit word. The 32 bit word is
 -- first divided into 4 groups of 8 bits where: The first group codes
@@ -128,7 +138,13 @@ data FixedAttr = FixedAttr
 -- Or be equivalent to the previously applied style. Or be a specific
 -- value.
 data MaybeDefault v = Default | KeepCurrent | SetTo !v
-  deriving (Eq, Read, Show)
+  deriving (Eq, Read, Show, Generic)
+
+instance HasTrie v => HasTrie (MaybeDefault v) where
+  newtype (MaybeDefault v :->: b) = MaybeDefaultTrie { unMaybeDefaultTrie :: Reg (MaybeDefault v) :->: b }
+  trie = trieGeneric MaybeDefaultTrie
+  untrie = untrieGeneric unMaybeDefaultTrie
+  enumerate = enumerateGeneric unMaybeDefaultTrie
 
 instance (NFData v) => NFData (MaybeDefault v) where
     rnf Default = ()

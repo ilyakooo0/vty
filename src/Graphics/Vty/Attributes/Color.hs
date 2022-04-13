@@ -2,6 +2,8 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Graphics.Vty.Attributes.Color
   ( Color(..)
@@ -56,6 +58,7 @@ import Control.Exception (catch)
 import Data.Maybe
 
 import Graphics.Vty.Attributes.Color240
+import Data.MemoTrie
 
 -- | Abstract data type representing a color.
 --
@@ -111,6 +114,12 @@ import Graphics.Vty.Attributes.Color240
 -- Seriously, terminal color support is INSANE.
 data Color = ISOColor !Word8 | Color240 !Word8 | RGBColor !Word8 !Word8 !Word8
     deriving ( Eq, Show, Read, Generic, NFData )
+
+instance HasTrie Color where
+  newtype (Color :->: b) = ColorTrie { unColorTrie :: Reg Color :->: b }
+  trie = trieGeneric ColorTrie
+  untrie = untrieGeneric unColorTrie
+  enumerate = enumerateGeneric unColorTrie
 
 data ColorMode
     = NoColor
